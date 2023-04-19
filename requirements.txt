@@ -1,0 +1,5 @@
+wheel
+torch
+torchvision
+numpy
+matplotlib

@@ -27,7 +27,7 @@ trainset = dataset(root='./data', train=True,
 testset = dataset(root='./data', train=False,
                                       download=True, transform=transform)
 
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 train_loader = torch.utils.data.DataLoader(trainset, batch_size=BATCH_SIZE,shuffle=True)
 
 test_loader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,shuffle=False)
@@ -45,28 +45,29 @@ img, label = trainset[0]
 examples = enumerate(test_loader)
 batch_idx, (example_data, example_targets) = next(examples)
 
-class MLP(nn.Module):
+class CNN(nn.Module):
+
     def __init__(self):
-        super(MLP, self).__init__()
-        self.flatten = nn.Flatten() # For flattening the 2D image
-
-        self.fc1 = nn.Linear(3*32*32, 128) # input
-        self.fc2 = nn.Linear(128, 128)  # First HL
-        self.fc3 = nn.Linear(128, len(classes))  # Second HL
-
+        super(CNN, self).__init__()
+        # Conv2d(input,output,filterSize)
+        # filtersize = n = (n*n)
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.fc1 = nn.Linear(16*5*5, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, len(classes))
         self.output = nn.LogSoftmax(dim=1)
     def forward(self, x):
-        # Batch x of shape (B, C, W, H)
-        x = self.flatten(x) # Batch now has shape (B, C*W*H)
-
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = torch.flatten(x, 1) # flatten all dimensions except batch
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-
-        # Apply dropout
         x = self.fc3(x)
         x = self.output(x)
-
-        return x  # Has shape (B, 10)
+        return x
 
 # Identify device
 device = ("cuda" if torch.cuda.is_available()
@@ -76,15 +77,15 @@ device = ("cuda" if torch.cuda.is_available()
 print(f"Using {device} device")
 
 # Creat the model and send its parameters to the appropriate device
-mlp = MLP().to(device)
+cnn = CNN().to(device)
 
 
 
 # Test on a batch of data
 with torch.no_grad():  # Don't accumlate gradients
-    mlp.eval()  # We are in evalutation mode
+    cnn.eval()  # We are in evalutation mode
     x = example_data.to(device)
-    outputs = mlp(x)  # Alias for mlp.forward
+    outputs = cnn(x)  # Alias for cnn.forward
 
     # Print example output.
     print(torch.exp(outputs[0]))
@@ -119,7 +120,7 @@ def test(net, test_loader, device):
             correct += (predicted == labels).sum().item()  # How many are correct?
     return correct / total
 
-mlp = MLP().to(device)
+cnn = CNN().to(device)
 
 LEARNING_RATE = 0.006
 MOMENTUM = 0.9
@@ -127,7 +128,7 @@ MOMENTUM = 0.9
 
 # Define the loss function, optimizer, and learning rate scheduler
 criterion = nn.NLLLoss()
-optimizer = optim.SGD(mlp.parameters(), lr=LEARNING_RATE, momentum=MOMENTUM)
+optimizer = optim.SGD(cnn.parameters(), lr=LEARNING_RATE, momentum=MOMENTUM)
 
 NUM_EPOCHS = 15
 
@@ -139,21 +140,20 @@ print("momentum",MOMENTUM)
 count = 1
 test_acc = 0 
 for i in range(NUM_EPOCHS):
-    train_loss = train(mlp, train_loader, criterion, optimizer, device)
-    test_acc = test(mlp, test_loader, device)
+    train_loss = train(cnn, train_loader, criterion, optimizer, device)
+    test_acc = test(cnn, test_loader, device)
     print(f"Epoch {i+1}: Train loss = {train_loss:.4f}, Test accuracy = {test_acc:.4f}")
     count+=1
-    if test_acc >= 0.58:
+    if test_acc >= 0.65:
         break
     
 
 
-
 with torch.no_grad():  # Don't accumlate gradients
-    mlp.eval()  # We are in evalutation mode
+    cnn.eval()  # We are in evalutation mode
     plt.imshow(example_data[0][0], interpolation='none')
     x = example_data.to(device)
-    outputs = mlp(x)  # Alias for mlp.forward
+    outputs = cnn(x)  # Alias for cnn.forward
 
     # Print example output.
     print(torch.exp(outputs[0]))

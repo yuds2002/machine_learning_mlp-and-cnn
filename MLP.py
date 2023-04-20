@@ -26,7 +26,7 @@ trainset = dataset(root='./data', train=True,
 testset = dataset(root='./data', train=False,
                                       download=True, transform=transform)
 
-BATCH_SIZE = 64
+BATCH_SIZE = 60
 train_loader = torch.utils.data.DataLoader(trainset, batch_size=BATCH_SIZE,shuffle=True)
 
 test_loader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,shuffle=False)
@@ -49,9 +49,9 @@ class MLP(nn.Module):
         super(MLP, self).__init__()
         self.flatten = nn.Flatten() # For flattening the 2D image
 
-        self.fc1 = nn.Linear(3*32*32, 256) # input
-        self.fc2 = nn.Linear(256, 64)  # First HL
-        self.fc3 = nn.Linear(64, len(classes))  # Second HL
+        self.fc1 = nn.Linear(3*32*32, 2000) # input
+        self.fc2 = nn.Linear(2000, 200)  # First HL
+        self.fc3 = nn.Linear(200, len(classes))  # Second HL
         self.dropout = nn.Dropout(0.25)
         self.output = nn.LogSoftmax(dim=1)
     def forward(self, x):
@@ -121,7 +121,7 @@ def test(net, test_loader, device):
 
 mlp = MLP().to(device)
 
-LEARNING_RATE = 0.0009
+LEARNING_RATE = 0.006
 MOMENTUM = 0.9
 
 

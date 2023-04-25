@@ -27,7 +27,7 @@ trainset = dataset(root='./data', train=True,
 testset = dataset(root='./data', train=False,
                                       download=True, transform=transform)
 
-BATCH_SIZE = 64
+BATCH_SIZE = 50
 train_loader = torch.utils.data.DataLoader(trainset, batch_size=BATCH_SIZE,shuffle=True)
 
 test_loader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,shuffle=False)
@@ -49,20 +49,24 @@ class CNN(nn.Module):
 
     def __init__(self):
         super(CNN, self).__init__()
+        
         # Conv2d(input,output,filterSize)
         # filtersize = n = (n*n)
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
         self.pool = nn.MaxPool2d(2, 2)
+
+        self.flatten = nn.Flatten() # For flattening the 2D image
         self.fc1 = nn.Linear(16*5*5, 120)
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, len(classes))
         self.output = nn.LogSoftmax(dim=1)
     def forward(self, x):
+        
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
-        x = torch.flatten(x, 1) # flatten all dimensions except batch
+        x = self.flatten(x) # 
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
@@ -122,13 +126,18 @@ def test(net, test_loader, device):
 
 cnn = CNN().to(device)
 
-LEARNING_RATE = 0.006
+#LEARNING_RATE = 0.006
+LEARNING_RATE = 0.0045 # this works at 9 epoch with batch 50
+# LEARNING_RATE = 0.005 # this works at 13 epoch with batch 64
+# LEARNING_RATE = 0.005 # this works at 12 epoch with batch 50
+# LEARNING_RATE = 0.0054 # this works at 14 epoch with batch 100
 MOMENTUM = 0.9
 
 
 # Define the loss function, optimizer, and learning rate scheduler
 criterion = nn.NLLLoss()
 optimizer = optim.SGD(cnn.parameters(), lr=LEARNING_RATE, momentum=MOMENTUM)
+lr_decay = optim.lr_scheduler.StepLR(optimizer, 10, 0.1)
 
 NUM_EPOCHS = 15
 
@@ -137,13 +146,12 @@ print("batch size ",BATCH_SIZE)
 print("momentum",MOMENTUM)
 #print("num epochs ",NUM_EPOCHS)
 
-count = 1
 test_acc = 0 
-for i in range(NUM_EPOCHS):
+for epoch in range(NUM_EPOCHS):
     train_loss = train(cnn, train_loader, criterion, optimizer, device)
     test_acc = test(cnn, test_loader, device)
-    print(f"Epoch {i+1}: Train loss = {train_loss:.4f}, Test accuracy = {test_acc:.4f}")
-    count+=1
+    lr_decay.step()
+    print(f"Epoch {epoch+1}: Train loss = {train_loss:.4f}, Test accuracy = {test_acc:.4f}")
     if test_acc >= 0.65:
         break
     

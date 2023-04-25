@@ -26,7 +26,7 @@ trainset = dataset(root='./data', train=True,
 testset = dataset(root='./data', train=False,
                                       download=True, transform=transform)
 
-BATCH_SIZE = 60
+BATCH_SIZE = 50
 train_loader = torch.utils.data.DataLoader(trainset, batch_size=BATCH_SIZE,shuffle=True)
 
 test_loader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,shuffle=False)
@@ -48,25 +48,23 @@ class MLP(nn.Module):
     def __init__(self):
         super(MLP, self).__init__()
         self.flatten = nn.Flatten() # For flattening the 2D image
-
-        self.fc1 = nn.Linear(3*32*32, 2000) # input
-        self.fc2 = nn.Linear(2000, 200)  # First HL
-        self.fc3 = nn.Linear(200, len(classes))  # Second HL
-        self.dropout = nn.Dropout(0.25)
+        
+        self.fc1 = nn.Linear(3*32*32, 512) # input
+        nn.BatchNorm1d(512)
+        self.fc2 = nn.Linear(512, 256)  # First HL
+        nn.BatchNorm1d(256)
+        self.fc3 = nn.Linear(256, len(classes))  
+        self.dropout = nn.Dropout(0.22)
         self.output = nn.LogSoftmax(dim=1)
     def forward(self, x):
-        # Batch x of shape (B, C, W, H)
-        x = self.flatten(x) # Batch now has shape (B, C*W*H)
-
+        x = self.flatten(x) # 
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-
-        # Apply dropout
+        #Apply dropout
         x = self.dropout(x)
         x = self.fc3(x)
         x = self.output(x)
-
-        return x  # Has shape (B, 10)
+        return x
 
 # Identify device
 device = ("cuda" if torch.cuda.is_available()
@@ -74,6 +72,8 @@ device = ("cuda" if torch.cuda.is_available()
     else "cpu"
 )
 print(f"Using {device} device")
+
+
 
 # Creat the model and send its parameters to the appropriate device
 mlp = MLP().to(device)
@@ -120,14 +120,18 @@ def test(net, test_loader, device):
     return correct / total
 
 mlp = MLP().to(device)
-
-LEARNING_RATE = 0.006
-MOMENTUM = 0.9
+LEARNING_RATE = 0.0033
+#LEARNING_RATE = 0.0055 gets 0.5659 with batch size 50,  1000 - 250 - 10
+#LEARNING_RATE = 0.003 gets 0.5622 with batch size 50 at epoch 14,  1000 - 250 -250- 10
+#LEARNING_RATE = 0.0033 gets 0.5772 with batch size 50,  512 - 256 - 10 lr_decay at 7 0.1
+MOMENTUM = 0.95
 
 
 # Define the loss function, optimizer, and learning rate scheduler
 criterion = nn.NLLLoss()
 optimizer = optim.SGD(mlp.parameters(), lr=LEARNING_RATE, momentum=MOMENTUM)
+lr_decay = optim.lr_scheduler.StepLR(optimizer, 6, 0.15)
+
 
 NUM_EPOCHS = 15
 
@@ -136,13 +140,12 @@ print("batch size ",BATCH_SIZE)
 print("momentum",MOMENTUM)
 #print("num epochs ",NUM_EPOCHS)
 
-count = 1
 test_acc = 0 
-for i in range(NUM_EPOCHS):
+for epoch in range(NUM_EPOCHS):
     train_loss = train(mlp, train_loader, criterion, optimizer, device)
     test_acc = test(mlp, test_loader, device)
-    print(f"Epoch {i+1}: Train loss = {train_loss:.4f}, Test accuracy = {test_acc:.4f}")
-    count+=1
+    lr_decay.step()
+    print(f"Epoch {epoch+1}: Train loss = {train_loss:.4f}, Test accuracy = {test_acc:.4f}")
     if test_acc >= 0.58:
         break
     
